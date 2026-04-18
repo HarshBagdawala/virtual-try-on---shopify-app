@@ -1,0 +1,85 @@
+{% schema %}
+{
+  "name": "Virtual Try-On",
+  "target": "section",
+  "javascript": "icona-script.js",
+  "stylesheet": "icona-style.css",
+  "settings": [
+    {
+      "type": "text",
+      "id": "button_text",
+      "label": "Button Text",
+      "default": "✨ Virtual Try-On"
+    },
+    {
+      "type": "color",
+      "id": "button_color",
+      "label": "Button Background Color",
+      "default": "#1a1a1a"
+    },
+    {
+      "type": "color",
+      "id": "button_text_color",
+      "label": "Button Text Color",
+      "default": "#ffffff"
+    }
+  ]
+}
+{% endschema %}
+
+<div class="icona-vto-container" id="icona-vto-root" data-product-id="{{ product.id }}" data-original-image="{{ product.featured_image | image_url: width: 1024 }}">
+  <button 
+    class="icona-vto-trigger-btn" 
+    style="background-color: {{ block.settings.button_color }}; color: {{ block.settings.button_text_color }};"
+    onclick="IconaVTO.openModal()"
+  >
+    {{ block.settings.button_text }}
+  </button>
+</div>
+
+<!-- Glassmorphism Modal -->
+<div id="icona-vto-modal" class="icona-vto-modal icona-hidden">
+  <div class="icona-vto-modal-overlay" onclick="IconaVTO.closeModal()"></div>
+  <div class="icona-vto-modal-content">
+    <div class="icona-vto-header">
+      <h2>✨ Virtual Fitting Room</h2>
+      <button class="icona-vto-close" onclick="IconaVTO.closeModal()">&times;</button>
+    </div>
+    
+    <div class="icona-vto-body">
+      <!-- Step 1: Upload -->
+      <div id="icona-vto-step-upload" class="icona-vto-step icona-active">
+        <p>See how this item looks on you!</p>
+        <div class="icona-upload-area" id="icona-dropzone">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="17 8 12 3 7 8"></polyline>
+            <line x1="12" y1="3" x2="12" y2="15"></line>
+          </svg>
+          <h3>Upload your photo</h3>
+          <p>Full body or upper body shot works best</p>
+          <input type="file" id="icona-file-input" accept="image/*" hidden />
+          <button class="icona-btn-secondary" onclick="document.getElementById('icona-file-input').click()">Browse Files</button>
+        </div>
+      </div>
+
+      <!-- Step 2: Processing -->
+      <div id="icona-vto-step-loading" class="icona-vto-step">
+        <div class="icona-loader"></div>
+        <h3>AI is working its magic...</h3>
+        <p>Designing your perfect fit.</p>
+      </div>
+
+      <!-- Step 3: Result -->
+      <div id="icona-vto-step-result" class="icona-vto-step">
+        <div class="icona-result-container">
+            <img id="icona-result-img" src="" alt="Virtual Try On Result" />
+        </div>
+        <div class="icona-actions">
+           <button class="icona-btn-primary" onclick="IconaVTO.downloadResult()">Download Image</button>
+           <button class="icona-btn-secondary" onclick="IconaVTO.reset()">Try Another</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

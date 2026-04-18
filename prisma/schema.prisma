@@ -1,0 +1,57 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Note that some adapters may set a maximum length for the String type by default, please ensure your strings are long
+// enough when changing adapters.
+// See https://www.prisma.io/docs/orm/reference/prisma-schema-reference#string for more information
+datasource db {
+  provider = "sqlite"
+  url      = "file:dev.sqlite"
+}
+
+model Session {
+  id            String    @id
+  shop          String
+  state         String
+  isOnline      Boolean   @default(false)
+  scope         String?
+  expires       DateTime?
+  accessToken   String
+  userId        BigInt?
+  firstName     String?
+  lastName      String?
+  email         String?
+  accountOwner  Boolean   @default(false)
+  locale        String?
+  collaborator  Boolean?  @default(false)
+  emailVerified Boolean?  @default(false)
+}
+
+model StoreSettings {
+  id                Int      @id @default(autoincrement())
+  shop              String   @unique
+  buttonColor       String   @default("#000000")
+  buttonText        String   @default("Virtual Try-On")
+  captureEmail      Boolean  @default(false)
+  replicateApiToken String?  // Store their own Replicate API token if needed
+  monthlyCredits    Int      @default(100)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model TryOnAction {
+  id              String   @id @default(uuid())
+  shop            String
+  userEmail       String?  // Optional if email capture is true
+  productId       String   // Shopify product ID
+  originalImage   String   // Expected input image
+  personImage     String   // The image of the person uploaded
+  resultImage     String?  // The output image from Replicate
+  status          String   @default("PENDING") // PENDING, COMPLETED, FAILED
+  replicateId     String?  // The Replicate prediction ID
+  createdAt       DateTime @default(now())
+}
