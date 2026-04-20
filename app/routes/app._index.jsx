@@ -89,6 +89,7 @@ export default function Index() {
                 content: 'Enable App Block',
                 url: themeEditUrl,
                 external: true,
+                target: '_blank',
               }}
             >
               <p>
