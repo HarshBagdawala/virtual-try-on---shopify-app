@@ -25,18 +25,7 @@ export async function action({ request }) {
       return json({ success: false, error: "Replicate token not configured" }, { status: 500 });
     }
 
-    // 1. Create a Pending TryOnAction in Database
-    const tryOnRecord = await prisma.tryOnAction.create({
-      data: {
-        shop,
-        productId,
-        originalImage: productImage,
-        personImage: "base64_hidden_for_size", // don't store full base64 in DB to save space, normally upload to Supabase storage first
-        status: "PENDING"
-      }
-    });
-
-    // 2. Call Replicate API (using IDM-VTON model)
+    // 1. Call Replicate API FIRST (using IDM-VTON model)
     const replicateResponse = await fetch("https://api.replicate.com/v1/predictions", {
       method: "POST",
       headers: {
@@ -44,36 +33,43 @@ export async function action({ request }) {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        version: "c871bb9b046607b680449ecbae55fd8c6d945e0a1948644bf2361b3d021d3ff4", // specific model version
+        version: "c871bb9b046607b680449ecbae55fd8c6d945e0a1948644bf2361b3d021d3ff4",
         input: {
           garm_img: productImage,
           human_img: userImage,
-          category: "upper_body", // Could be dynamic based on product tags
+          category: "upper_body",
           steps: 30
         }
       })
     });
 
     const prediction = await replicateResponse.json();
+    console.log("Replicate Prediction Start Response:", JSON.stringify(prediction));
 
-    if (prediction.error) {
-      await prisma.tryOnAction.update({
-        where: { id: tryOnRecord.id },
-        data: { status: "FAILED" }
-      });
-      return json({ success: false, error: prediction.error });
+    if (!prediction.id || prediction.error) {
+      console.error("Replicate failed to start:", prediction.error || "No ID returned");
+      return json({ success: false, error: prediction.error || "Failed to start AI process" }, { status: 500 });
     }
 
-    let predictionId = prediction.id;
-    let resultUrl = null;
-    let attempts = 0;
+    // 2. NOW Create the record in Database with the ID already present
+    const tryOnRecord = await prisma.tryOnAction.create({
+      data: {
+        shop,
+        productId,
+        originalImage: productImage,
+        personImage: "base64_hidden",
+        status: "PENDING",
+        replicateId: prediction.id
+      }
+    });
 
-    // 3. Return the ID to the storefront immediately
-    // The frontend will now handle polling
+    console.log("Database Record Created with ID:", tryOnRecord.id);
+
+    // 3. Return to storefront
     return json({
       success: true,
       tryOnId: tryOnRecord.id,
-      replicateId: predictionId
+      replicateId: prediction.id
     });
 
   } catch (error) {

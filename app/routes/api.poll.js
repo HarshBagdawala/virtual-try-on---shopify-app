@@ -20,6 +20,8 @@ export async function action({ request }) {
       where: { id: tryOnId }
     });
 
+    console.log(`Polling for ID: ${tryOnId}, ReplicateID: ${tryOnRecord?.replicateId}, Current DB Status: ${tryOnRecord?.status}`);
+
     if (!tryOnRecord) {
       return json({ success: false, error: "Record not found" }, { status: 404 });
     }
@@ -41,6 +43,7 @@ export async function action({ request }) {
     });
     
     const pollData = await pollResponse.json();
+    console.log(`Replicate Status for ${tryOnId}:`, pollData.status);
     
     if (pollData.status === 'succeeded') {
       const resultUrl = pollData.output;
