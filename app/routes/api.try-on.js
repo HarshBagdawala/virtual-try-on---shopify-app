@@ -2,8 +2,7 @@ import { json } from "@remix-run/node";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 
-// Sleep helper for polling
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+// No longer need sleep here as we move polling to the frontend
 
 export async function action({ request }) {
   try {
@@ -69,58 +68,12 @@ export async function action({ request }) {
     let resultUrl = null;
     let attempts = 0;
 
-    // 3. Poll Replicate for the result (App proxies have a 30s timeout, so we cap polling around 25s)
-    // In a truly production app with long generation times, we'd use Webhooks or a background queue (BullMQ),
-    // and let the frontend poll our backend separately.
-    while (attempts < 10) {
-      await sleep(2500);
-      
-      const pollResponse = await fetch(`https://api.replicate.com/v1/predictions/${predictionId}`, {
-        headers: {
-          "Authorization": `Token ${replicateApiToken}`
-        }
-      });
-      
-      const pollData = await pollResponse.json();
-      
-      if (pollData.status === 'succeeded') {
-        resultUrl = pollData.output;
-        break;
-      } else if (pollData.status === 'failed' || pollData.status === 'canceled') {
-        break;
-      }
-      
-      attempts++;
-    }
-
-    if (!resultUrl) {
-      // It timed out or failed
-      await prisma.tryOnAction.update({
-        where: { id: tryOnRecord.id },
-        data: { status: "FAILED", replicateId: predictionId }
-      });
-      // Fallback for demo purposes if Replicate is not actually firing
-      return json({ 
-        success: false, 
-        error: "Generation timed out. Replicate might be booting or cold starting." 
-      });
-    }
-
-    // 4. Update Database with Success
-    await prisma.tryOnAction.update({
-      where: { id: tryOnRecord.id },
-      data: { 
-        status: "COMPLETED", 
-        resultImage: resultUrl,
-        replicateId: predictionId
-      }
-    });
-
-    // 5. Return the image to the storefront!
-    // App proxy requires returning JSON or specific Content-Type
+    // 3. Return the ID to the storefront immediately
+    // The frontend will now handle polling
     return json({
       success: true,
-      imageUrl: resultUrl
+      tryOnId: tryOnRecord.id,
+      replicateId: predictionId
     });
 
   } catch (error) {

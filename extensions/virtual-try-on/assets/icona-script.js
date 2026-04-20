@@ -66,7 +66,6 @@ const IconaVTO = (function () {
     setStep('loading');
 
     try {
-      // Setup payload for our App Proxy
       const payload = {
         shop: state.shop,
         productId: state.productId,
@@ -74,38 +73,67 @@ const IconaVTO = (function () {
         userImage: state.userImage
       };
 
-      // In Shopify, the app proxy is usually configured at '/apps/api' or similar. 
-      // We will assume '/apps/icona-api/try-on' for now.
-      const proxyUrl = '/apps/icona/api/try-on';
-
-      const response = await fetch(proxyUrl, {
+      const resp = await fetch('/apps/icona/api/try-on', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'ngrok-skip-browser-warning': '1' // If using ngrok
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
 
-      if (!response.ok) {
-        throw new Error('Network response was not ok');
-      }
+      if (!resp.ok) throw new Error('Network response was not ok');
+      const result = await resp.json();
 
-      const result = await response.json();
-
-      if (result.success && result.imageUrl) {
-        document.getElementById('icona-result-img').src = result.imageUrl;
-        setStep('result');
+      if (result.success && result.tryOnId) {
+        // Start polling for the actual result
+        pollStatus(result.tryOnId);
       } else {
-        alert("Sorry, we couldn't generate the try-on. " + (result.error || ''));
+        alert("Failed to start try-on: " + (result.error || 'Unknown error'));
         reset();
       }
-
     } catch (error) {
-      console.error('Error processing try-on:', error);
+      console.error('Error starting try-on:', error);
       alert("Failed to process image. Please try again.");
       reset();
     }
+  }
+
+  async function pollStatus(tryOnId) {
+    const pollInterval = 3000; // 3 seconds
+    let attempts = 0;
+    const maxAttempts = 40; // Total 120 seconds
+
+    const timer = setInterval(async () => {
+      attempts++;
+      if (attempts > maxAttempts) {
+        clearInterval(timer);
+        alert("Generation is taking longer than expected. Please try again later.");
+        reset();
+        return;
+      }
+
+      try {
+        const resp = await fetch('/apps/icona/api/poll', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tryOnId })
+        });
+
+        if (!resp.ok) return; // Keep polling if network error
+        const data = await resp.json();
+
+        if (data.status === 'COMPLETED' && data.imageUrl) {
+          clearInterval(timer);
+          document.getElementById('icona-result-img').src = data.imageUrl;
+          setStep('result');
+        } else if (data.status === 'FAILED') {
+          clearInterval(timer);
+          alert("Try-on failed: " + (data.error || 'Unknown error'));
+          reset();
+        }
+        // If still PENDING, let the interval fire again
+      } catch (err) {
+        console.error('Polling error:', err);
+      }
+    }, pollInterval);
   }
 
   function reset() {
