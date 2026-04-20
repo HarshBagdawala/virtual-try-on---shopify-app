@@ -15,6 +15,12 @@ const IconaVTO = (function () {
       state.productImage = root.getAttribute('data-original-image');
     }
 
+    const modal = document.getElementById('icona-vto-modal');
+    if (modal) {
+      // Move modal to body to bypass parent relative positioning/clipping
+      document.body.appendChild(modal);
+    }
+
     const fileInput = document.getElementById('icona-file-input');
     if (fileInput) {
       fileInput.addEventListener('change', handleFileSelect);
@@ -25,6 +31,7 @@ const IconaVTO = (function () {
     const modal = document.getElementById('icona-vto-modal');
     if (modal) {
       modal.classList.remove('icona-hidden');
+      document.body.classList.add('icona-vto-no-scroll');
     }
   }
 
@@ -32,6 +39,7 @@ const IconaVTO = (function () {
     const modal = document.getElementById('icona-vto-modal');
     if (modal) {
       modal.classList.add('icona-hidden');
+      document.body.classList.remove('icona-vto-no-scroll');
     }
   }
 
