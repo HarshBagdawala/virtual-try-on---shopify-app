@@ -34,39 +34,39 @@ export async function action({ request }) {
       return json({ success: false, status: "FAILED", error: "Generation failed" });
     }
 
-    // 3. Otherwise, check Replicate status
-    const replicateApiToken = process.env.REPLICATE_API_TOKEN;
-    const pollResponse = await fetch(`https://api.replicate.com/v1/predictions/${tryOnRecord.replicateId}`, {
+    // 3. Otherwise, check Fal.ai status
+    const falKey = process.env.FAL_KEY;
+    const pollResponse = await fetch(`https://queue.fal.run/fal-ai/idm-vton/requests/${tryOnRecord.replicateId}`, {
       headers: {
-        "Authorization": `Token ${replicateApiToken}`
+        "Authorization": `Key ${falKey}`
       }
     });
     
     const pollData = await pollResponse.json();
-    console.log(`Replicate Status for ${tryOnId}:`, pollData.status);
+    console.log(`Fal.ai Status for ${tryOnId}:`, pollData.status);
     
-    if (pollData.status === 'succeeded') {
-      const resultUrl = pollData.output;
+    if (pollData.status === 'COMPLETED' && pollData.response?.image?.url) {
+      const resultUrl = pollData.response.image.url;
       
       // Update DB
       await prisma.tryOnAction.update({
         where: { id: tryOnId },
         data: { 
           status: "COMPLETED", 
-          resultImage: Array.isArray(resultUrl) ? resultUrl[0] : resultUrl 
+          resultImage: resultUrl 
         }
       });
 
-      return json({ success: true, status: "COMPLETED", imageUrl: Array.isArray(resultUrl) ? resultUrl[0] : resultUrl });
-    } else if (pollData.status === 'failed' || pollData.status === 'canceled') {
+      return json({ success: true, status: "COMPLETED", imageUrl: resultUrl });
+    } else if (pollData.status === 'ERROR') {
       await prisma.tryOnAction.update({
         where: { id: tryOnId },
         data: { status: "FAILED" }
       });
-      return json({ success: false, status: "FAILED", error: pollData.error || "Generation failed" });
+      return json({ success: false, status: "FAILED", error: pollData.error || "Generation failed on Fal.ai" });
     }
 
-    // Still pending
+    // Still pending (IN_QUEUE or IN_PROGRESS)
     return json({ success: true, status: "PENDING" });
 
   } catch (error) {

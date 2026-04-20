@@ -20,38 +20,37 @@ export async function action({ request }) {
       return json({ success: false, error: "Missing images" }, { status: 400 });
     }
 
-    const replicateApiToken = process.env.REPLICATE_API_TOKEN;
-    if (!replicateApiToken) {
-      return json({ success: false, error: "Replicate token not configured" }, { status: 500 });
+    const falKey = process.env.FAL_KEY;
+    if (!falKey) {
+      return json({ success: false, error: "Fal.ai key not configured" }, { status: 500 });
     }
 
-    // 1. Call Replicate API FIRST (using IDM-VTON model)
-    const replicateResponse = await fetch("https://api.replicate.com/v1/predictions", {
+    // Ensure userImage has the proper data URI prefix for Fal.ai
+    const formattedUserImage = userImage.startsWith('data:') ? userImage : `data:image/jpeg;base64,${userImage}`;
+
+    // 1. Call Fal.ai API FIRST (IDM-VTON queue)
+    const falResponse = await fetch("https://queue.fal.run/fal-ai/idm-vton", {
       method: "POST",
       headers: {
-        "Authorization": `Token ${replicateApiToken}`,
+        "Authorization": `Key ${falKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        version: "c871bb9b046607b680449ecbae55fd8c6d945e0a1948644bf2361b3d021d3ff4",
-        input: {
-          garm_img: productImage,
-          human_img: userImage,
-          category: "upper_body",
-          steps: 30
-        }
+        garment_image_url: productImage,
+        human_image_url: formattedUserImage,
+        category: "upper_body"
       })
     });
 
-    const prediction = await replicateResponse.json();
-    console.log("Replicate Prediction Start Response:", JSON.stringify(prediction));
+    const prediction = await falResponse.json();
+    console.log("Fal.ai Prediction Start Response:", JSON.stringify(prediction));
 
-    if (!prediction.id || prediction.error) {
-      console.error("Replicate failed to start:", prediction.error || "No ID returned");
-      return json({ success: false, error: prediction.error || "Failed to start AI process" }, { status: 500 });
+    if (!prediction.request_id) {
+      console.error("Fal.ai failed to start:", prediction);
+      return json({ success: false, error: "Failed to start AI process on Fal.ai" }, { status: 500 });
     }
 
-    // 2. NOW Create the record in Database with the ID already present
+    // 2. NOW Create the record in Database with the Request ID
     const tryOnRecord = await prisma.tryOnAction.create({
       data: {
         shop,
@@ -59,7 +58,7 @@ export async function action({ request }) {
         originalImage: productImage,
         personImage: "base64_hidden",
         status: "PENDING",
-        replicateId: prediction.id
+        replicateId: prediction.request_id // We use the same field for request_id
       }
     });
 
@@ -69,7 +68,7 @@ export async function action({ request }) {
     return json({
       success: true,
       tryOnId: tryOnRecord.id,
-      replicateId: prediction.id
+      replicateId: prediction.request_id
     });
 
   } catch (error) {
